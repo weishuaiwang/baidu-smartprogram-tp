@@ -2,27 +2,27 @@
 
 namespace baidu;
 
-use baidu\AesEncryptUtil;
-use Symfony\Component\Cache\Simple\FilesystemCache;
+use baidu\encoding\AesEncryptUtil;
 use Curl\Curl;
 
 class SmartProgramTP
 {
     private $client_id, $aes_key, $tpkey;
-    pricate $cache;
+    private $curl;
 
     public function __construct($client_id, $aes_key, $tpkey)
     {
         $this->client_id = $client_id;
         $this->aes_key = $aes_key;
         $this->tpkey = $tpkey;
-        $this->cache = new FilesystemCache();
+        $this->curl = new Curl();
     }
 
     /**
      * 解析Ticket数据
+     * 百度服务器每10分钟请求第三方服务器进行刷新此数据
      **/
-    public function generateTicket( $data )
+    public function getTicket( $data )
     {
         $dataCoder = new AesEncryptUtil($this->client_id, $this->aes_key);
         $deData = $dataCoder->decrypt($data['Encrypt']);
@@ -38,30 +38,36 @@ class SmartProgramTP
     }
 
     /**
-     * 2.获取第三方平台access_token
+     * 获取第三方平台access_token
+     *
+     * @param $ticket 第三方平台解析push数据后得到的ticket
+     *
      **/
     public function getTpAccessToken($ticket)
     {
-        $baidu_tp_access_token = cache('baidu_tp_access_token');
+        $url = 'https://openapi.baidu.com/public/2.0/smartapp/auth/tp/token?client_id='.$this->tpkey.'&ticket='.$ticket;
 
-        if (!$this->cache->has('baidu_tp_access_token')) {
-            $url = 'https://openapi.baidu.com/public/2.0/smartapp/auth/tp/token?client_id='.$this->tpkey.'&ticket='.$ticket;
-            $curl = new Curl();
-            $json = $curl->get($url);
-            $result = json_decode($json, true);
-
-            if ($result['errno'] == 0) {
-                $baidu_tp_access_token = $result['data']['access_token'];
-
-                cache('baidu_tp_access_token', $baidu_tp_access_token, $result['data']['expires_in']-432000);
-            } else {
-                return '';
-            }
-        } else {
-            $baidu_tp_access_token = $this->cache->get('baidu_tp_access_token');
+        $json = $this->curl->get($url);
+        if ($this->curl->error) {
+            return [
+                'errno' => 0,
+                'msg' => $curl->errorMessage
+            ];
         }
 
-        return $baidu_tp_access_token;
+        $result = json_decode($json, true);
+        if ($result['errno'] == 0) {
+            return [
+                'errno' => 1,
+                'access_token' => $result['data']['access_token'],
+                'msg' => 'success'
+            ];
+        }
+
+        return [
+            'errno' => 0,
+            'msg' => isset($result['data']['msg']) ? $result['data']['msg'] : '接口请求失败';
+        ];
     }
 
     /**
@@ -69,30 +75,24 @@ class SmartProgramTP
      **/
     public function getPreAuthCode()
     {
-        $pre_auth_code = $this->cache->has('baidu_tp_pre_auth_code');
+        $pre_auth_code = '';
+        $access_token = $this->getTpAccessToken();
 
-        if (!$pre_auth_code) {
-            $pre_auth_code = '';
-            $access_token = $this->getTpAccessToken();
-
-            if ($access_token == '') {
-                $this->error('ticket无效');
-            }
-
-            $url = 'https://openapi.baidu.com/rest/2.0/smartapp/tp/createpreauthcode?access_token='.$access_token;
-            $curl = new Curl();
-            $json = $curl->get($url);
-
-            $result = json_decode($json, true);
-
-            if ($result['errno'] == 0) {
-                $pre_auth_code = $result['data']['pre_auth_code'];
-
-                $this->cache->set('baidu_tp_pre_auth_code', $pre_auth_code, 600);
-            }
+        if ($access_token == '') {
+            $this->error('ticket无效');
         }
 
-        return $pre_auth_code;
+        $url = 'https://openapi.baidu.com/rest/2.0/smartapp/tp/createpreauthcode?access_token='.$access_token;
+        $curl = new Curl();
+        $json = $curl->get($url);
+
+        $result = json_decode($json, true);
+
+        if ($result['errno'] == 0) {
+            $pre_auth_code = $result['data']['pre_auth_code'];
+
+            $this->cache->set('baidu_tp_pre_auth_code', $pre_auth_code, 600);
+        }
     }
 
     /**

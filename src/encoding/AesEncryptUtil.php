@@ -7,6 +7,7 @@ class AesEncryptUtil
     public static $blockSize = 32;
     private $clientId;
     private $aesKey;
+
     /**
      * AesEncryptNewUtilUtil constructor.
      * @param $clientId
