@@ -1,4 +1,4 @@
-# League Skeleton
+# 百度小程序服务商对接接口
 
 [![Latest Version](https://img.shields.io/github/release/thephpleague/skeleton.svg?style=flat-square)](https://github.com/thephpleague/skeleton/releases)
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE.md)
@@ -9,8 +9,7 @@
 
 **Note:** Replace `skeleton` with the correct package name in the above URLs, then delete this line.
 
-This is where your description should go. Try and limit it to a paragraph or two, and maybe throw in a mention of what
-PSRs you support to avoid any confusion with users and contributors.
+百度小程序服务商接口
 
 ## Install
 
